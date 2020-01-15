@@ -5,4 +5,4 @@ authors = ["pi"]
 edition = "2018"
 
 [dependencies]
-dht22_pi = "0.1.0"
+dht22_pi = "0.2.0"
