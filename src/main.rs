@@ -1,9 +1,12 @@
 use dht22_pi as dht;
 use dht22_pi::ReadingError;
 use std::io::Write;
+use std::net;
 use std::str::FromStr;
-use std::sync::mpsc;
-use std::{env, fs, thread, time};
+use std::sync;
+use std::{env, thread, time};
+
+const READ_WAIT: time::Duration = time::Duration::from_millis(600);
 
 fn main() {
     let mut args = env::args();
@@ -15,34 +18,49 @@ fn main() {
     )
     .expect("Please enter the number of the gpio pin");
 
-    let (send, recv) = mpsc::channel();
+    let addr: String = args
+        .next()
+        .expect("Please enter the address and port to bind to");
+
+    // Setup
+    let data = sync::Arc::new(sync::Mutex::new(None));
+    let read_data = data.clone();
+    let listener = net::TcpListener::bind(&addr).expect(&format!("Could not listen on {}", addr));
 
     thread::spawn(move || {
-        const READ_WAIT: time::Duration = time::Duration::from_secs(2);
-        const TRY_WAIT: time::Duration = time::Duration::from_millis(500);
         loop {
             match dht::read(pin) {
-                Ok(r) => {
+                Ok(read) => {
                     // TODO: Use chrono to get prettier times
-                    send.send((time::SystemTime::now(), r)).unwrap();
-                    thread::sleep(READ_WAIT);
+                    *read_data.lock().unwrap() = Some(read);
                 }
                 Err(ReadingError::Gpio(e)) => println!("{:#?}", e),
-                _ => thread::sleep(TRY_WAIT),
+                _ => (),
             }
+            thread::sleep(READ_WAIT);
         }
     });
 
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open("data.csv")
-        .unwrap();
-
-    loop {
-        let (time, reading) = recv.recv().unwrap();
-        let s = format!("{:?}, {}, {}", time, reading.temperature, reading.humidity);
-        println!("{}", s);
-        file.write_all(s.as_bytes()).unwrap();
+    let mut err_counter = 0;
+    for stream in listener.incoming() {
+        match stream {
+            Ok(mut stream) => {
+                // someone connected to this address
+                let guard = data.lock().unwrap();
+                let s = match &*guard {
+                    Some(reading) => format!("Temperature: {}°C\nHumdity: {}%", reading.temperature, reading.humidity),
+                    None => "No data available".to_owned(),
+                };
+                stream.write(&s.as_bytes());
+                stream.flush();
+            }
+            Err(e) => {
+                err_counter += 1;
+                if err_counter > 10 {
+                    // Too many errors, something seems wrong
+                    panic!("Encountered too many errors, last error: {}", e);
+                }
+            }
+        }
     }
 }
