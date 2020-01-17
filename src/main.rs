@@ -56,6 +56,7 @@ fn main() {
                 };
                 stream.write(&s.as_bytes());
                 stream.flush();
+                stream.shutdown(net::Shutdown::Both);
             }
             Err(e) => {
                 err_counter += 1;
