@@ -48,7 +48,10 @@ fn main() {
                 // someone connected to this address
                 let guard = data.lock().unwrap();
                 let s = match &*guard {
-                    Some(reading) => format!("Temperature: {}°C\nHumdity: {}%", reading.temperature, reading.humidity),
+                    Some(reading) => format!(
+                        "Temperature: {}°C\nHumdity: {}%",
+                        reading.temperature, reading.humidity
+                    ),
                     None => "No data available".to_owned(),
                 };
                 stream.write(&s.as_bytes());
