@@ -6,7 +6,7 @@ use std::str::FromStr;
 use std::sync;
 use std::{env, thread, time};
 
-const READ_WAIT: time::Duration = time::Duration::from_millis(600);
+const READ_WAIT: time::Duration = time::Duration::from_millis(1500);
 
 fn main() {
     let mut args = env::args();
