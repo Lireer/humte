@@ -1,3 +1,5 @@
+mod util;
+
 use dht22_pi as dht;
 use dht22_pi::ReadingError;
 use std::io::Write;
@@ -32,7 +34,7 @@ fn main() {
             match dht::read(pin) {
                 Ok(read) => {
                     // TODO: Use chrono to get prettier times
-                    *read_data.lock().unwrap() = Some(read);
+                    *read_data.lock().unwrap() = Some(Data::new(read.temperature, read.humidity));
                 }
                 Err(ReadingError::Gpio(e)) => println!("{:#?}", e),
                 _ => (),
@@ -48,9 +50,9 @@ fn main() {
                 // someone connected to this address
                 let guard = data.lock().unwrap();
                 let s = match &*guard {
-                    Some(reading) => format!(
-                        "Temperature: {} C\nHumdity: {} %",
-                        reading.temperature, reading.humidity
+                    Some(data) => format!(
+                        "Temperature: {} C\nRelative Humdity: {} %\nAbsolute Humidity: {} g/m^3",
+                        data.temperature, data.rel_humidity, data.abs_humidity
                     ),
                     None => "No data available".to_owned(),
                 };
@@ -65,6 +67,25 @@ fn main() {
                     panic!("Encountered too many errors, last error: {}", e);
                 }
             }
+        }
+    }
+}
+
+struct Data {
+    /// Temperature in degree celsius.
+    temperature: f32,
+    /// Relative humidity in percent.
+    rel_humidity: f32,
+    /// Absolute humidity in grams per cubic meter of air.
+    abs_humidity: f32,
+}
+
+impl Data {
+    pub fn new(temperature: f32, rel_humidity: f32) -> Self {
+        Data {
+            temperature,
+            rel_humidity,
+            abs_humidity: util::absolute_humidity(temperature, rel_humidity),
         }
     }
 }
