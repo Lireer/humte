@@ -51,7 +51,9 @@ fn main() {
                 let guard = data.lock().unwrap();
                 let s = match &*guard {
                     Some(data) => format!(
-                        "Temperature: {} C\nRelative Humdity: {} %\nAbsolute Humidity: {} g/m^3",
+                        "Temperature: {:.1} C\n\
+                         Relative Humdity: {:.1} %\n\
+                         Absolute Humidity: {:.3} g/m^3",
                         data.temperature, data.rel_humidity, data.abs_humidity
                     ),
                     None => "No data available".to_owned(),
