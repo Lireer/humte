@@ -1,5 +1,6 @@
 mod util;
 
+use chrono::prelude::*;
 use dht22_pi as dht;
 use dht22_pi::ReadingError;
 use std::{collections::VecDeque, env, io::Write, net, str::FromStr, sync, thread, time};
@@ -30,12 +31,13 @@ fn main() {
         loop {
             match dht::read(pin) {
                 Ok(read) => {
+                    let time = Local::now();
                     // TODO: Use chrono to get prettier times
                     let mut vecd = read_data.lock().unwrap();
                     if vecd.len() == MAX_READINGS {
                         vecd.pop_front();
                     }
-                    vecd.push_back(Data::new(read.temperature, read.humidity));
+                    vecd.push_back(Data::new(time, read.temperature, read.humidity));
                 }
                 Err(ReadingError::Gpio(e)) => println!("{:#?}", e),
                 _ => (),
@@ -50,12 +52,16 @@ fn main() {
             Ok(mut stream) => {
                 // someone connected to this address
                 let guard = data.lock().unwrap();
-                let s = match &guard.back() {
+                let s = match guard.back() {
                     Some(data) => format!(
-                        "Temperature: {:.1} C\n\
+                        "{}\n\
+                         Temperature: {:.1} C\n\
                          Relative Humdity: {:.1} %\n\
                          Absolute Humidity: {:.3} g/m^3",
-                        data.temperature, data.rel_humidity, data.abs_humidity
+                        data.time.format("%d.%m.%Y %H:%M:%S"),
+                        data.temperature,
+                        data.rel_humidity,
+                        data.abs_humidity
                     ),
                     None => "No data available".to_owned(),
                 };
@@ -75,6 +81,7 @@ fn main() {
 }
 
 struct Data {
+    time: DateTime<Local>,
     /// Temperature in degree celsius.
     temperature: f32,
     /// Relative humidity in percent.
@@ -84,8 +91,9 @@ struct Data {
 }
 
 impl Data {
-    pub fn new(temperature: f32, rel_humidity: f32) -> Self {
+    pub fn new(time: DateTime<Local>, temperature: f32, rel_humidity: f32) -> Self {
         Data {
+            time,
             temperature,
             rel_humidity,
             abs_humidity: util::absolute_humidity(temperature, rel_humidity),

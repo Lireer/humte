@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 dht22_pi = "0.1.0"
+chrono = "0.4.10"
 
 [profile.release]
 codegen-units = 1
