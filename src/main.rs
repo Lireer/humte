@@ -2,13 +2,10 @@ mod util;
 
 use dht22_pi as dht;
 use dht22_pi::ReadingError;
-use std::io::Write;
-use std::net;
-use std::str::FromStr;
-use std::sync;
-use std::{env, thread, time};
+use std::{collections::VecDeque, env, io::Write, net, str::FromStr, sync, thread, time};
 
 const READ_WAIT: time::Duration = time::Duration::from_millis(1500);
+const MAX_READINGS: usize = 500;
 
 fn main() {
     let mut args = env::args();
@@ -25,7 +22,7 @@ fn main() {
         .expect("Please enter the address and port to bind to");
 
     // Setup
-    let data = sync::Arc::new(sync::Mutex::new(None));
+    let data = sync::Arc::new(sync::Mutex::new(VecDeque::with_capacity(MAX_READINGS)));
     let read_data = data.clone();
     let listener = net::TcpListener::bind(&addr).expect(&format!("Could not listen on {}", addr));
 
@@ -34,7 +31,11 @@ fn main() {
             match dht::read(pin) {
                 Ok(read) => {
                     // TODO: Use chrono to get prettier times
-                    *read_data.lock().unwrap() = Some(Data::new(read.temperature, read.humidity));
+                    let mut vecd = read_data.lock().unwrap();
+                    if vecd.len() == MAX_READINGS {
+                        vecd.pop_front();
+                    }
+                    vecd.push_back(Data::new(read.temperature, read.humidity));
                 }
                 Err(ReadingError::Gpio(e)) => println!("{:#?}", e),
                 _ => (),
@@ -49,7 +50,7 @@ fn main() {
             Ok(mut stream) => {
                 // someone connected to this address
                 let guard = data.lock().unwrap();
-                let s = match &*guard {
+                let s = match &guard.front() {
                     Some(data) => format!(
                         "Temperature: {:.1} C\n\
                          Relative Humdity: {:.1} %\n\
