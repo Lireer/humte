@@ -8,6 +8,8 @@ use std::{collections::VecDeque, env, io::Write, net, str::FromStr, sync, thread
 const READ_WAIT: time::Duration = time::Duration::from_millis(1500);
 const MAX_READINGS: usize = 500;
 
+type DataStore = sync::Arc<sync::Mutex<VecDeque<Data>>>;
+
 fn main() {
     let mut args = env::args();
     args.next().expect("No args given");
@@ -27,24 +29,8 @@ fn main() {
     let read_data = data.clone();
     let listener = net::TcpListener::bind(&addr).expect(&format!("Could not listen on {}", addr));
 
-    thread::spawn(move || {
-        loop {
-            match dht::read(pin) {
-                Ok(read) => {
-                    let time = Local::now();
-                    // TODO: Use chrono to get prettier times
-                    let mut vecd = read_data.lock().unwrap();
-                    if vecd.len() == MAX_READINGS {
-                        vecd.pop_front();
-                    }
-                    vecd.push_back(Data::new(time, read.temperature, read.humidity));
-                }
-                Err(ReadingError::Gpio(e)) => println!("{:#?}", e),
-                _ => (),
-            }
-            thread::sleep(READ_WAIT);
-        }
-    });
+    // start reading thread
+    thread::spawn(move || read_sensor(pin, read_data));
 
     let mut err_counter = 0;
     for stream in listener.incoming() {
@@ -98,5 +84,23 @@ impl Data {
             rel_humidity,
             abs_humidity: util::absolute_humidity(temperature, rel_humidity),
         }
+    }
+}
+
+fn read_sensor(pin: u8, data_store: DataStore) {
+    loop {
+        match dht::read(pin) {
+            Ok(read) => {
+                let time = Local::now();
+                let mut vecd = data_store.lock().unwrap();
+                if vecd.len() == MAX_READINGS {
+                    vecd.pop_front();
+                }
+                vecd.push_back(Data::new(time, read.temperature, read.humidity));
+            }
+            Err(ReadingError::Gpio(e)) => println!("{:#?}", e),
+            _ => (),
+        }
+        thread::sleep(READ_WAIT);
     }
 }
