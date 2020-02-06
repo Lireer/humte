@@ -50,7 +50,7 @@ fn main() {
             Ok(mut stream) => {
                 // someone connected to this address
                 let guard = data.lock().unwrap();
-                let s = match &guard.front() {
+                let s = match &guard.back() {
                     Some(data) => format!(
                         "Temperature: {:.1} C\n\
                          Relative Humdity: {:.1} %\n\
