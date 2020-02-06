@@ -34,6 +34,7 @@ fn main() {
 }
 
 struct Data {
+    /// Date and time when the data was measured.
     time: DateTime<Local>,
     /// Temperature in degree celsius.
     temperature: f32,
