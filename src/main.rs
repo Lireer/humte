@@ -24,46 +24,13 @@ fn main() {
         .next()
         .expect("Please enter the address and port to bind to");
 
-    // Setup
-    let data = sync::Arc::new(sync::Mutex::new(VecDeque::with_capacity(MAX_READINGS)));
-    let read_data = data.clone();
-    let listener = net::TcpListener::bind(&addr).expect(&format!("Could not listen on {}", addr));
+    // start reading data from sensor
+    let output_data_store = sync::Arc::new(sync::Mutex::new(VecDeque::with_capacity(MAX_READINGS)));
+    let read_data_store = output_data_store.clone();
+    thread::spawn(move || read_sensor(pin, read_data_store));
 
-    // start reading thread
-    thread::spawn(move || read_sensor(pin, read_data));
-
-    let mut err_counter = 0;
-    for stream in listener.incoming() {
-        match stream {
-            Ok(mut stream) => {
-                // someone connected to this address
-                let guard = data.lock().unwrap();
-                let s = match guard.back() {
-                    Some(data) => format!(
-                        "{}\n\
-                         Temperature: {:.1} C\n\
-                         Relative Humdity: {:.1} %\n\
-                         Absolute Humidity: {:.3} g/m^3",
-                        data.time.format("%d.%m.%Y %H:%M:%S"),
-                        data.temperature,
-                        data.rel_humidity,
-                        data.abs_humidity
-                    ),
-                    None => "No data available".to_owned(),
-                };
-                stream.write(&s.as_bytes());
-                stream.flush();
-                stream.shutdown(net::Shutdown::Both);
-            }
-            Err(e) => {
-                err_counter += 1;
-                if err_counter > 10 {
-                    // Too many errors, something seems wrong
-                    panic!("Encountered too many errors, last error: {}", e);
-                }
-            }
-        }
-    }
+    // start a server
+    start_server(&addr, output_data_store)
 }
 
 struct Data {
@@ -102,5 +69,42 @@ fn read_sensor(pin: u8, data_store: DataStore) {
             _ => (),
         }
         thread::sleep(READ_WAIT);
+    }
+}
+
+fn start_server(addr: &str, data: DataStore) {
+    let listener = net::TcpListener::bind(&addr).expect(&format!("Could not listen on {}", addr));
+
+    let mut err_counter = 0;
+    for stream in listener.incoming() {
+        match stream {
+            Ok(mut stream) => {
+                // someone connected to this address
+                let guard = data.lock().unwrap();
+                let s = match guard.back() {
+                    Some(data) => format!(
+                        "{}\n\
+                         Temperature: {:.1} C\n\
+                         Relative Humdity: {:.1} %\n\
+                         Absolute Humidity: {:.3} g/m^3",
+                        data.time.format("%d.%m.%Y %H:%M:%S"),
+                        data.temperature,
+                        data.rel_humidity,
+                        data.abs_humidity
+                    ),
+                    None => "No data available".to_owned(),
+                };
+                stream.write(&s.as_bytes());
+                stream.flush();
+                stream.shutdown(net::Shutdown::Both);
+            }
+            Err(e) => {
+                err_counter += 1;
+                if err_counter > 10 {
+                    // Too many errors, something seems wrong
+                    panic!("Encountered too many errors, last error: {}", e);
+                }
+            }
+        }
     }
 }
