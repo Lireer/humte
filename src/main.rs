@@ -111,7 +111,7 @@ fn start_server(addr: &str, data: DataStore) {
                 }
 
                 stream.flush();
-                stream.shutdown(net::Shutdown::Both);
+                // stream.shutdown(net::Shutdown::Both);
             }
             Err(e) => {
                 err_counter += 1;
