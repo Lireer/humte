@@ -2,9 +2,14 @@ mod util;
 
 use chrono::prelude::*;
 use dht22_pi as dht;
-use dht22_pi::ReadingError;
+// use dht22_pi::ReadingError;
 use plotters::prelude::*;
-use std::{collections::VecDeque, env, fs, io::Write, net, str::FromStr, sync, thread, time};
+use std::{
+    collections::VecDeque,
+    io::{Read, Write},
+    str::FromStr,
+};
+use std::{env, io, fs, net, sync, thread, time};
 
 const READ_WAIT: time::Duration = time::Duration::from_millis(1500);
 const MAX_READINGS: usize = 500;
@@ -72,7 +77,7 @@ fn read_sensor(pin: u8, data_store: DataStore) {
                 }
                 vecd.push_back(Data::new(time, read.temperature, read.humidity));
             }
-            Err(ReadingError::Gpio(e)) => println!("{:#?}", e),
+            // Err(ReadingError::Gpio(e)) => println!("{:#?}", e),
             _ => (),
         }
         thread::sleep(READ_WAIT);
