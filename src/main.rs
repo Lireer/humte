@@ -132,18 +132,18 @@ fn generate_plot(data: &VecDeque<Data>) -> Option<()> {
     let to_date = data.back()?.time + chrono::Duration::minutes(2);
 
     // Set temperature minimum and maximum
-    let (temp_min, temp_max) = data.iter().fold((0f32, 0f32), |(min, max), dp| {
+    let (temp_min, temp_max) = data.iter().fold((10000f32, -274f32), |(min, max), dp| {
         (min.min(dp.temperature), max.max(dp.temperature))
     });
-    let temp_margin = (temp_max - temp_min) * 15.0 / 100.0;
+    let temp_margin = 1f32.max((temp_max - temp_min) * 15.0 / 100.0);
     let temp_min = temp_min - temp_margin;
     let temp_max = temp_max + temp_margin;
 
     // Set relative humidity minimum and maximum
-    let (hum_min, hum_max) = data.iter().fold((0f32, 0f32), |(min, max), dp| {
+    let (hum_min, hum_max) = data.iter().fold((10000f32, -274f32), |(min, max), dp| {
         (min.min(dp.rel_humidity), max.max(dp.rel_humidity))
     });
-    let hum_margin = (hum_max - hum_min) * 15.0 / 100.0;
+    let hum_margin = 1f32.max((hum_max - hum_min) * 15.0 / 100.0);
     let hum_min = 0f32.max(hum_min - hum_margin);
     let hum_max = 100f32.min(hum_max + hum_margin);
 
@@ -191,7 +191,8 @@ fn generate_plot(data: &VecDeque<Data>) -> Option<()> {
             &BLUE,
         ))
         .ok()?
-        .label("Rel. Humidity [%]");
+        .label("Rel. Humidity [%]")
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &BLUE));
 
     // Set the legend in the upper right corner
     chart
