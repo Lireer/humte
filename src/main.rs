@@ -14,6 +14,8 @@ use std::{env, io, fs, net, sync, thread, time};
 const READ_WAIT: time::Duration = time::Duration::from_millis(1500);
 const MAX_READINGS: usize = 500;
 const PLOT_PATH: &str = "./temp_hum_plot.svg";
+const HTTP_NOT_FOUND: &[u8] = b"HTTP/1.1 404 Not Found\r\n\r\n";
+const HTTP_GET: &[u8] = b"GET / HTTP";
 
 type DataStore = sync::Arc<sync::Mutex<VecDeque<Data>>>;
 
@@ -87,46 +89,74 @@ fn read_sensor(pin: u8, data_store: DataStore) {
 fn start_server(addr: &str, data: DataStore) {
     let listener = net::TcpListener::bind(&addr).expect(&format!("Could not listen on {}", addr));
 
-    let mut err_counter = 0;
-    for stream in listener.incoming() {
-        match stream {
-            Ok(mut stream) => {
-                // someone connected to this address
-                let guard = data.lock().unwrap();
-
-                let s = match guard.back() {
-                    Some(data) => format!(
-                        "{}\n\
-                        Temperature: {:.1} C\n\
-                        Relative Humdity: {:.1} %\n\
-                        Absolute Humidity: {:.3} g/m^3\n",
-                        data.time.format("%d.%m.%Y %H:%M:%S"),
-                        data.temperature,
-                        data.rel_humidity,
-                        data.abs_humidity
-                    ),
-                    None => "No data available".to_owned(),
-                };
-                stream.write_all(&s.as_bytes());
-
-                // generate a new plot
-                generate_plot(&*guard);
-                if let Ok(plot) = fs::read(PLOT_PATH) {
-                    stream.write_all(&plot);
-                }
-
-                stream.flush();
-                // stream.shutdown(net::Shutdown::Both);
-            }
-            Err(e) => {
-                err_counter += 1;
-                if err_counter > 10 {
-                    // Too many errors, something seems wrong
-                    panic!("Encountered too many errors, last error: {}", e);
-                }
+    for stream_result in listener.incoming() {
+        if let Ok(mut stream) = stream_result {
+            if let Err(_) = handle_connection(&mut stream, &data) {
+                continue;
             }
         }
     }
+}
+
+fn handle_connection(stream: &mut net::TcpStream, data: &DataStore) -> io::Result<()> {
+    let mut buffer = [0; 128];
+    stream.read(&mut buffer)?;
+
+    if !buffer.starts_with(HTTP_GET) {
+        stream.write_all(HTTP_NOT_FOUND)?;
+        stream.flush()?;
+        stream.shutdown(net::Shutdown::Both)?;
+        return Ok(());
+    }
+
+    // someone connected to this address
+    let guard = data.lock().unwrap();
+
+    let content = match guard.back() {
+        Some(data) => {
+            // generate a new plot
+            generate_plot(&*guard);
+            let svg = match fs::read_to_string(PLOT_PATH) {
+                Ok(plot) => plot,
+                Err(_) => "Plot not available".to_owned(),
+            };
+
+            format!(
+                "<head>\
+                    <meta charset=\"utf-8\" />\
+                    <title>Temperature & Humidity</title>\
+                    </head>\
+                <body>\
+                    <div>\
+                        {time}<br/>\
+                        Temperature: {temp:.1} °C<br />\
+                        Relative Humidity: {rel_hum:.1} %<br />\
+                        Absolute Humidity: {abs_hum:.3} g/m^3<br />\
+                    </div>\
+                    <div>\
+                        {svg}\
+                    </div>\
+                </body>",
+                time=data.time.format("%d.%m.%Y %H:%M:%S"),
+                temp=data.temperature,
+                rel_hum=data.rel_humidity,
+                abs_hum=data.abs_humidity,
+                svg=svg,
+            )
+        }
+        _ => "<body>No data available</body>".to_owned(),
+    };
+
+    let response = format!("HTTP/1.1 200 OK\r\n\r\n{}", content);
+
+    stream.write_all(response.as_bytes())?;
+    stream.flush()?;
+
+    // FIXME: This is done to avoid shutting down the connetion, while the client is
+    //        still reading from the socket
+    thread::sleep(time::Duration::from_millis(1000));
+    stream.shutdown(net::Shutdown::Both)?;
+    Ok(())
 }
 
 fn generate_plot(data: &VecDeque<Data>) -> Option<()> {
