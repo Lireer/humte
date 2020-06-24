@@ -42,6 +42,7 @@ fn main() {
     start_server(&addr, output_data_store)
 }
 
+#[derive(Debug)]
 struct Data {
     /// Date and time when the data was measured.
     time: DateTime<Local>,
@@ -84,6 +85,34 @@ fn read_sensor(pin: u8, data_store: DataStore) {
         }
         thread::sleep(READ_WAIT);
     }
+}
+
+const OUTLIER_DIFF_MIN_TEMP: f32 = 0.3;
+const OUTLIER_DIFF_MIN_HUMI: f32 = 0.4;
+
+fn reading_is_valid(to_check: &Data, before: &Data, after: &Data) -> bool {
+    // the reading is an outlier if temperature or humidity are outliers
+    value_is_valid(
+        to_check.temperature,
+        before.temperature,
+        after.temperature,
+        OUTLIER_DIFF_MIN_TEMP,
+    ) && value_is_valid(
+        to_check.rel_humidity,
+        before.rel_humidity,
+        after.rel_humidity,
+        OUTLIER_DIFF_MIN_HUMI,
+    )
+}
+
+fn value_is_valid(to_check: f32, before: f32, after: f32, min_diff: f32) -> bool {
+    let mut high = before.max(after);
+    let mut low = before.min(after);
+    let diff = min_diff.max(high - low);
+    high += diff;
+    low -= diff;
+
+    (low..high).contains(&to_check)
 }
 
 fn start_server(addr: &str, data: DataStore) {
@@ -238,4 +267,19 @@ fn generate_plot(data: &VecDeque<Data>) -> Option<()> {
         .ok()?;
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn range_check() {
+        assert!(!value_is_valid(-10.01, 0.0, 10.0, 10.0)); // slightly below the valid range
+        assert!(value_is_valid(-10.0, 0.0, 10.0, 10.0)); // lowest valid value
+        assert!(value_is_valid(0.0, 0.0, 10.0, 10.0)); // valid
+        assert!(value_is_valid(10.0, 0.0, 10.0, 10.0)); // valid
+        assert!(value_is_valid(19.99, 0.0, 10.0, 10.0)); // high valid value
+        assert!(!value_is_valid(20.0, 0.0, 10.0, 10.0)); // just above the valid range
+    }
 }
