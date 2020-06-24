@@ -248,6 +248,7 @@ fn generate_plot(data: &VecDeque<Data>) -> Option<()> {
         .line_style_2(&WHITE)
         .axis_desc_style(("sans-serif", 25))
         .y_desc("Temperature [°C]")
+        .x_label_formatter(&|time| time.format("%H:%M").to_string())
         .draw()
         .ok()?;
 
