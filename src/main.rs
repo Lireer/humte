@@ -12,7 +12,7 @@ use std::{
 use std::{env, io, fs, net, sync, thread, time};
 
 const READ_WAIT: time::Duration = time::Duration::from_millis(1500);
-const MAX_READINGS: usize = 500;
+const MAX_READINGS: usize = 20000;
 const PLOT_PATH: &str = "./temp_hum_plot.svg";
 const HTTP_NOT_FOUND: &[u8] = b"HTTP/1.1 404 Not Found\r\n\r\n";
 const HTTP_GET: &[u8] = b"GET / HTTP";
