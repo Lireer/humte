@@ -9,7 +9,7 @@ use std::{
     io::{Read, Write},
     str::FromStr,
 };
-use std::{env, io, fs, net, sync, thread, time};
+use std::{env, fs, io, net, sync, thread, time};
 
 const READ_WAIT: time::Duration = time::Duration::from_millis(1500);
 const MAX_READINGS: usize = 20000;
@@ -187,11 +187,11 @@ fn handle_connection(stream: &mut net::TcpStream, data: &DataStore) -> io::Resul
                         {svg}\
                     </div>\
                 </body>",
-                time=data.time.format("%d.%m.%Y %H:%M:%S"),
-                temp=data.temperature,
-                rel_hum=data.rel_humidity,
-                abs_hum=data.abs_humidity,
-                svg=svg,
+                time = data.time.format("%d.%m.%Y %H:%M:%S"),
+                temp = data.temperature,
+                rel_hum = data.rel_humidity,
+                abs_hum = data.abs_humidity,
+                svg = svg,
             )
         }
         _ => "<body>No data available</body>".to_owned(),
