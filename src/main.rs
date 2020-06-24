@@ -68,41 +68,38 @@ impl Data {
 fn read_sensor(pin: u8, data_store: DataStore) {
     let mut prior_read = None;
     loop {
-        match dht::read(pin) {
-            Ok(read) => {
-                let time = Local::now();
+        if let Ok(read) = dht::read(pin) {
+            let time = Local::now();
 
-                // ignore the reading if temperature or humidity aren't finite
-                if !read.temperature.is_finite() || !read.humidity.is_finite() {
-                    break;
-                }
-
-                let new_data = Data::new(time, read.temperature, read.humidity);
-
-                // check if the prior reading is valid given the latest stored reading and the new reading
-                let mut vecd = data_store.lock().unwrap();
-
-                if prior_read.is_some() {
-                    let prior = prior_read.take().unwrap();
-                    // for prior to be added to the store either the store has to be empty or prior has to be valid
-                    if vecd.back().is_none()
-                        || reading_is_valid(&prior, &vecd.back().unwrap(), &new_data)
-                    {
-                        if vecd.len() == MAX_READINGS {
-                            vecd.pop_front();
-                        }
-                        vecd.push_back(prior);
-                    } else if vecd.back().is_some() {
-                        println!("{} ::> Discarded reading", time);
-                        println!("store:\n{:?}", vecd.back().unwrap());
-                        println!("prior:\n{:?}", prior);
-                        println!("new:\n{:?}", new_data);
-                    }
-                }
-
-                prior_read = Some(new_data);
+            // ignore the reading if temperature or humidity aren't finite
+            if !read.temperature.is_finite() || !read.humidity.is_finite() {
+                break;
             }
-            _ => (),
+
+            let new_data = Data::new(time, read.temperature, read.humidity);
+
+            // check if the prior reading is valid given the latest stored reading and the new reading
+            let mut vecd = data_store.lock().unwrap();
+
+            if prior_read.is_some() {
+                let prior = prior_read.take().unwrap();
+                // for prior to be added to the store either the store has to be empty or prior has to be valid
+                if vecd.back().is_none()
+                    || reading_is_valid(&prior, &vecd.back().unwrap(), &new_data)
+                {
+                    if vecd.len() == MAX_READINGS {
+                        vecd.pop_front();
+                    }
+                    vecd.push_back(prior);
+                } else if vecd.back().is_some() {
+                    println!("{} ::> Discarded reading", time);
+                    println!("store:\n{:?}", vecd.back().unwrap());
+                    println!("prior:\n{:?}", prior);
+                    println!("new:\n{:?}", new_data);
+                }
+            }
+
+            prior_read = Some(new_data);
         }
         thread::sleep(READ_WAIT);
     }
@@ -137,14 +134,11 @@ fn value_is_valid(to_check: f32, before: f32, after: f32, min_diff: f32) -> bool
 }
 
 fn start_server(addr: &str, data: DataStore) {
-    let listener = net::TcpListener::bind(&addr).expect(&format!("Could not listen on {}", addr));
+    let listener =
+        net::TcpListener::bind(&addr).unwrap_or_else(|_| panic!("Could not listen on {}", addr));
 
     for stream_result in listener.incoming() {
-        if let Ok(mut stream) = stream_result {
-            if let Err(_) = handle_connection(&mut stream, &data) {
-                continue;
-            }
-        }
+        let _ = stream_result.and_then(|mut stream| handle_connection(&mut stream, &data));
     }
 }
 
