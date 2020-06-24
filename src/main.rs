@@ -66,21 +66,42 @@ impl Data {
 }
 
 fn read_sensor(pin: u8, data_store: DataStore) {
+    let mut prior_read = None;
     loop {
         match dht::read(pin) {
             Ok(read) => {
                 let time = Local::now();
+
+                // ignore the reading if temperature or humidity aren't finite
                 if !read.temperature.is_finite() || !read.humidity.is_finite() {
                     break;
                 }
 
+                let new_data = Data::new(time, read.temperature, read.humidity);
+
+                // check if the prior reading is valid given the latest stored reading and the new reading
                 let mut vecd = data_store.lock().unwrap();
-                if vecd.len() == MAX_READINGS {
-                    vecd.pop_front();
+
+                if prior_read.is_some() {
+                    let prior = prior_read.take().unwrap();
+                    // for prior to be added to the store either the store has to be empty or prior has to be valid
+                    if vecd.back().is_none()
+                        || reading_is_valid(&prior, &vecd.back().unwrap(), &new_data)
+                    {
+                        if vecd.len() == MAX_READINGS {
+                            vecd.pop_front();
+                        }
+                        vecd.push_back(prior);
+                    } else if vecd.back().is_some() {
+                        println!("{} ::> Discarded reading", time);
+                        println!("store:\n{:?}", vecd.back().unwrap());
+                        println!("prior:\n{:?}", prior);
+                        println!("new:\n{:?}", new_data);
+                    }
                 }
-                vecd.push_back(Data::new(time, read.temperature, read.humidity));
+
+                prior_read = Some(new_data);
             }
-            // Err(ReadingError::Gpio(e)) => println!("{:#?}", e),
             _ => (),
         }
         thread::sleep(READ_WAIT);
