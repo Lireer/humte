@@ -5,11 +5,16 @@ if [ -z ${ARM6_GCC} ]; then
     exit 1;
 fi
 
+COMMAND="build"
 DEBUG=""
 
-if ( getopts ":r" opt); then
-    DEBUG="--release";
-    echo "Building in release mode"
-fi
+while getopts ":r" opt; do
+    case $opt in
+        r)
+            DEBUG="--release";
+            echo "Building in release mode";
+            ;;
+    esac
+done
 
-RUSTFLAGS="-C linker=$ARM6_GCC" cargo build --target arm-unknown-linux-gnueabihf $DEBUG
+RUSTFLAGS="-C linker=$ARM6_GCC" cargo $COMMAND --target arm-unknown-linux-gnueabihf $DEBUG
