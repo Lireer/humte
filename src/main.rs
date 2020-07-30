@@ -5,16 +5,14 @@ mod util;
 // use dht22_pi::ReadingError;
 use std::{
     collections::VecDeque,
-    env, fs,
-    io::{self, Read, Write},
-    net,
+    env, fs, io,
     str::FromStr,
     sync::{Arc, Mutex},
-    thread, time,
+    thread,
 };
+use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
-const HTTP_NOT_FOUND: &[u8] = b"HTTP/1.1 404 Not Found\r\n\r\n";
-const HTTP_GET: &[u8] = b"GET / HTTP";
+const THREADS: usize = 2;
 
 fn main() {
     let mut args = env::args();
@@ -35,31 +33,37 @@ fn main() {
     let read_data_store = output_data_store.clone();
     thread::spawn(move || data::read_sensor(pin, read_data_store));
 
-    // start a server
-    start_server(&addr, output_data_store)
-}
+    // start the server
+    let server =
+        Arc::new(Server::http(&addr).unwrap_or_else(|_| panic!("Could not listen on {}", addr)));
+    let mut guards = Vec::with_capacity(THREADS);
 
-fn start_server(addr: &str, data: data::DataStore) {
-    let listener =
-        net::TcpListener::bind(&addr).unwrap_or_else(|_| panic!("Could not listen on {}", addr));
+    for _ in 0..THREADS {
+        let server = server.clone();
+        let output_data_store = output_data_store.clone();
 
-    for stream_result in listener.incoming() {
-        let _ = stream_result.and_then(|mut stream| handle_connection(&mut stream, &data));
+        let guard = thread::spawn(move || {
+            for request in server.incoming_requests() {
+                if let Err(e) = handle_request(request, &output_data_store) {
+                    println!("{:?}", e);
+                }
+            }
+        });
+
+        guards.push(guard);
+    }
+    
+    for guard in guards {
+        guard.join().unwrap();
     }
 }
 
-fn handle_connection(stream: &mut net::TcpStream, data: &data::DataStore) -> io::Result<()> {
-    let mut buffer = [0; 128];
-    stream.read(&mut buffer)?;
-
-    if !buffer.starts_with(HTTP_GET) {
-        stream.write_all(HTTP_NOT_FOUND)?;
-        stream.flush()?;
-        stream.shutdown(net::Shutdown::Both)?;
-        return Ok(());
+fn handle_request(request: Request, data: &data::DataStore) -> io::Result<()> {
+    if request.method() != &Method::Get {
+        return request.respond(Response::empty(StatusCode(404)));
     }
 
-    // someone connected to this address
+    // get the lock on the DataStore
     let guard = data.lock().unwrap();
 
     let content = match guard.back() {
@@ -75,7 +79,7 @@ fn handle_connection(stream: &mut net::TcpStream, data: &data::DataStore) -> io:
                 "<head>\
                     <meta charset=\"utf-8\" />\
                     <title>Temperature & Humidity</title>\
-                    </head>\
+                </head>\
                 <body>\
                     <div>\
                         {time}<br/>\
@@ -97,14 +101,8 @@ fn handle_connection(stream: &mut net::TcpStream, data: &data::DataStore) -> io:
         _ => "<body>No data available</body>".to_owned(),
     };
 
-    let response = format!("HTTP/1.1 200 OK\r\n\r\n{}", content);
-
-    stream.write_all(response.as_bytes())?;
-    stream.flush()?;
-
-    // FIXME: This is done to avoid shutting down the connetion, while the client is
-    //        still reading from the socket
-    thread::sleep(time::Duration::from_millis(1000));
-    stream.shutdown(net::Shutdown::Both)?;
-    Ok(())
+    let response = Response::from_string(content)
+        .with_status_code(StatusCode(200))
+        .with_header(Header::from_str("Content-Type: text/html").unwrap());
+    request.respond(response)
 }
