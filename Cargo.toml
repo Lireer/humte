@@ -6,6 +6,6 @@ edition = "2018"
 
 [dependencies]
 dht22_pi = "0.3.0"
-chrono = "0.4.11"
+chrono = "0.4.13"
 plotters = { version = "0.2.15", default_features = false, features = ["svg", "datetime", "line_series"] }
 tiny_http = "0.7.0"
