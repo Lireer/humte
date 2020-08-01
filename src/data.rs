@@ -1,6 +1,7 @@
 use crate::util;
 use chrono::prelude::*;
 use dht22_pi as dht;
+use log::*;
 use std::{collections::VecDeque, sync, thread, time};
 
 const READ_WAIT: time::Duration = time::Duration::from_millis(1500);
@@ -36,9 +37,11 @@ pub fn read_sensor(pin: u8, data_store: DataStore) {
     loop {
         if let Ok(read) = dht::read(pin) {
             let time = Local::now();
+            trace!("New measurement: {:?}", read);
 
             // ignore the reading if temperature or humidity aren't finite
             if !read.temperature.is_finite() || !read.humidity.is_finite() {
+                warn!("Found non finite measurement: {:?}", read);
                 break;
             }
 
@@ -58,10 +61,9 @@ pub fn read_sensor(pin: u8, data_store: DataStore) {
                     }
                     vecd.push_back(prior);
                 } else if vecd.back().is_some() {
-                    println!("{} ::> Discarded reading", time);
-                    println!("store:\n{:?}", vecd.back().unwrap());
-                    println!("prior:\n{:?}", prior);
-                    println!("new:\n{:?}", new_data);
+                    debug!("Discarded reading {:?}", prior);
+                    debug!("Previous reading {:?}", vecd.back().unwrap());
+                    debug!("Following reading {:?}", new_data);
                 }
             }
 

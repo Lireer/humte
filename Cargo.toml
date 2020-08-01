@@ -5,7 +5,9 @@ authors = ["Carl Scherer"]
 edition = "2018"
 
 [dependencies]
-dht22_pi = "0.3.0"
 chrono = "0.4.13"
+dht22_pi = "0.3.0"
+log = "0.4.11"
 plotters = { version = "0.2.15", default_features = false, features = ["svg", "datetime", "line_series"] }
+simplelog = "0.8.0"
 tiny_http = "0.7.0"
