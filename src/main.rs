@@ -75,8 +75,11 @@ fn main() {
 }
 
 fn handle_request(request: Request, data: &data::DataStore) -> io::Result<()> {
-    if request.method() != &Method::Get {
-        trace!("Received a request which is not a GET: {:?}", request);
+    if request.method() != &Method::Get || request.url() != "/" {
+        trace!(
+            "Received a request which is not a GET to \"/\": {:?}",
+            request
+        );
         return request.respond(Response::empty(StatusCode(404)));
     }
 
