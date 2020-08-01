@@ -8,22 +8,23 @@ pub fn generate_plot(data: &VecDeque<Data>) -> Option<()> {
     let backend = SVGBackend::new(PLOT_PATH, (1024, 512)).into_drawing_area();
     backend.fill(&WHITE).ok()?;
 
+    // Set time axis range
     let from_date = data.front()?.time - chrono::Duration::minutes(2);
     let to_date = data.back()?.time + chrono::Duration::minutes(2);
 
-    // Set temperature minimum and maximum
+    // Set temperature axis range
     let (temp_min, temp_max) = data.iter().fold((10000f32, -274f32), |(min, max), dp| {
         (min.min(dp.temperature), max.max(dp.temperature))
     });
-    let temp_margin = 1f32.max((temp_max - temp_min) * 15.0 / 100.0);
+    let temp_margin = 0.4f32.max((temp_max - temp_min) * 15.0 / 100.0);
     let temp_min = temp_min - temp_margin;
     let temp_max = temp_max + temp_margin;
 
-    // Set relative humidity minimum and maximum
+    // Set relative humidity axis range
     let (hum_min, hum_max) = data.iter().fold((10000f32, -274f32), |(min, max), dp| {
         (min.min(dp.rel_humidity), max.max(dp.rel_humidity))
     });
-    let hum_margin = 1f32.max((hum_max - hum_min) * 15.0 / 100.0);
+    let hum_margin = 0.4f32.max((hum_max - hum_min) * 15.0 / 100.0);
     let hum_min = 0f32.max(hum_min - hum_margin);
     let hum_max = 100f32.min(hum_max + hum_margin);
 
