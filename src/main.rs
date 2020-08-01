@@ -17,13 +17,11 @@ use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 const THREADS: usize = 2;
 
 fn main() {
-    let log_file = fs::File::create("./log").unwrap();
-    let log_config = ConfigBuilder::new().set_time_format_str("%+").build();
-    CombinedLogger::init(vec![
-        TermLogger::new(LevelFilter::Debug, log_config.clone(), TerminalMode::Mixed),
-        WriteLogger::new(LevelFilter::Info, log_config, log_file),
-    ])
-    .expect("Failed to initialize the logger");
+    let log_config = ConfigBuilder::new()
+        .set_time_format_str("%F %T%.3f%:z")
+        .build();
+    TermLogger::init(LevelFilter::Debug, log_config, TerminalMode::Mixed)
+        .expect("Failed to initialize the logger");
 
     let mut args = env::args();
     trace!("Arguments: {:#?}", &args);
