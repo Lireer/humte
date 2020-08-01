@@ -121,8 +121,8 @@ fn handle_request(request: Request, data: &data::DataStore) -> io::Result<()> {
         _ => "<body>No data available</body>".to_owned(),
     };
 
-    let response = Response::from_string(content)
+    let response = Response::from_data(content)
         .with_status_code(StatusCode(200))
-        .with_header(Header::from_str("Content-Type: text/html").unwrap());
+        .with_header(Header::from_str("Content-Type: text/html; charset=UTF-8").unwrap());
     request.respond(response)
 }
